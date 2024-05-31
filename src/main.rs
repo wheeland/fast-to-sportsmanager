@@ -2,6 +2,7 @@ use std::{env, fs, process::ExitCode};
 
 use itsf::ItsfPlayerDb;
 
+mod analysis;
 mod fast;
 mod itsf;
 
@@ -25,7 +26,30 @@ fn main() -> ExitCode {
         players.save_cache(CACHE);
     }
 
-    println!("{:#?}", ffft);
+    // analyze data
+    for tournament in &ffft.tournaments.tournaments {
+        for competition in &tournament.competition {
+            println!(
+                "Competition {} {} {}",
+                competition.competitionType, competition.name, competition.sex,
+            );
+
+            let comp = analysis::Competition::new(competition, &players);
+            for phase in comp.phases {
+                println!("  Phase {}", phase.phase_type);
+                println!("    Ranking:");
+                for (team, rank) in &phase.ranking {
+                    println!("      {} {:?}", rank, *team);
+                }
+                println!("    Matches:");
+                for m in &phase.matches {
+                    println!("      {:?}", m);
+                }
+            }
+        }
+    }
+
+    // println!("{:#?}", ffft);
 
     return ExitCode::SUCCESS;
 }
