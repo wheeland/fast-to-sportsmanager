@@ -36,21 +36,28 @@ pub struct PhaseRanking {
 
 #[derive(Deserialize, Debug)]
 pub struct Game {
+    pub gameNumber: u64,
     pub scoreTeam1: u64,
     pub scoreTeam2: u64,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct TeamMatch {
+    #[serde(default)]
     pub team1Id: u64,
+    #[serde(default)]
     pub team2Id: u64,
-    pub game: Game,
+    #[serde(default)]
+    pub matchNumber: u64,
+    pub game: Vec<Game>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Phase {
     pub phaseType: String,
     pub phaseRanking: PhaseRanking,
+    #[serde(default)]
+    pub teamMatch: Vec<TeamMatch>,
 }
 
 #[derive(Deserialize, Debug)]
