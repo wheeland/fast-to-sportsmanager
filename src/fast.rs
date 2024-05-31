@@ -52,6 +52,43 @@ pub struct TeamMatch {
     pub game: Vec<Game>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum TeamMatchResult {
+    Draw,
+    Win1,
+    Win2,
+}
+
+impl TeamMatch {
+    pub fn result(&self) -> TeamMatchResult {
+        let mut score = 0;
+        for game in &self.game {
+            score += (game.scoreTeam1 as i32 - game.scoreTeam2 as i32).signum();
+        }
+        if score > 0 {
+            TeamMatchResult::Win1
+        } else if score < 0 {
+            TeamMatchResult::Win2
+        } else {
+            TeamMatchResult::Draw
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Team {
+    #[serde(default)]
+    pub player1Id: u64,
+    #[serde(default)]
+    pub player2Id: u64,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct CompetitionTeam {
+    pub id: u64,
+    pub team: Team,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct Phase {
     pub phaseType: String,
@@ -66,7 +103,10 @@ pub struct Competition {
     pub competitionType: String,
     #[serde(default)]
     pub name: String,
+    #[serde(default)]
+    pub sex: String,
     pub phase: Vec<Phase>,
+    pub competitionTeam: Vec<CompetitionTeam>,
 }
 
 #[derive(Deserialize, Debug)]
