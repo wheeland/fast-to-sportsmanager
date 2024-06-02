@@ -79,8 +79,8 @@ impl Spiel {
         let gast = Meldung::from(0, &m.team2).name;
         let (s1, s2) = match m.result {
             TeamMatchResult::Draw => (1, 1),
-            TeamMatchResult::Win1 => (2, 0),
-            TeamMatchResult::Win2 => (0, 2),
+            TeamMatchResult::Win1 => (1, 0),
+            TeamMatchResult::Win2 => (0, 1),
         };
         let satz = vec![Satz { heim: s1, gast: s2 }];
         Self {
