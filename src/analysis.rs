@@ -48,13 +48,14 @@ impl Debug for Team {
 
 pub type TeamRc = Rc<Team>;
 
-pub struct Match {
+pub struct Match<'a> {
+    pub source: &'a fast::TeamMatch,
     pub result: fast::TeamMatchResult,
     pub team1: TeamRc,
     pub team2: TeamRc,
 }
 
-impl Debug for Match {
+impl Debug for Match<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.result {
             fast::TeamMatchResult::Draw => {
@@ -74,7 +75,7 @@ pub struct Phase<'a> {
     pub source: &'a fast::Phase,
     pub phase_type: String,
     pub ranking: Vec<(TeamRc, u64)>,
-    pub matches: Vec<Match>,
+    pub matches: Vec<Match<'a>>,
 }
 
 pub struct Competition<'a> {
@@ -113,6 +114,7 @@ impl<'a> Competition<'a> {
                 let team2 = teams.get(&phase_match.team2Id);
                 if let Some((team1, team2)) = team1.zip(team2) {
                     matches.push(Match {
+                        source: phase_match,
                         result: phase_match.result(),
                         team1: team1.clone(),
                         team2: team2.clone(),
