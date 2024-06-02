@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs};
 use scraper::{ElementRef, Html, Selector};
 use serde_derive::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ItsfPlayer {
     pub first_name: String,
     pub last_name: String,
