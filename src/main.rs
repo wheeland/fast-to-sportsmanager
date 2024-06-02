@@ -8,6 +8,28 @@ mod itsf;
 
 const CACHE: &'static str = "player_cache.json";
 
+fn write_competition(outfile: &str, comp: &analysis::Competition) {
+    let mut out = String::new();
+
+    assert!(comp.phases.len() > 0, "Competition has no phases");
+    let match_phase = comp
+        .phases
+        .iter()
+        .filter(|phase| !phase.matches.is_empty())
+        .next();
+    let phase = match_phase.unwrap_or(comp.phases.first().unwrap());
+
+    for (team, rank) in &phase.ranking {
+        out += &format!("{:4} {:?}\n", rank, team);
+    }
+    out += "\n";
+    for m in &phase.matches {
+        out += &format!("{:?}\n", m);
+    }
+
+    fs::write(outfile, out).expect("Failed to write file");
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
@@ -27,29 +49,48 @@ fn main() -> ExitCode {
     }
 
     // analyze data
+    let mut competitions = Vec::new();
     for tournament in &ffft.tournaments.tournaments {
         for competition in &tournament.competition {
-            println!(
-                "Competition {} {} {}",
-                competition.competitionType, competition.name, competition.sex,
-            );
-
             let comp = analysis::Competition::new(competition, &players);
-            for phase in comp.phases {
-                println!("  Phase {}", phase.phase_type);
-                println!("    Ranking:");
-                for (team, rank) in &phase.ranking {
-                    println!("      {} {:?}", rank, *team);
-                }
-                println!("    Matches:");
-                for m in &phase.matches {
-                    println!("      {:?}", m);
-                }
+
+            for other_comp in &competitions {
+                comp.maybe_add_subcompetition(other_comp);
+                other_comp.maybe_add_subcompetition(&comp);
             }
+
+            competitions.push(comp);
         }
     }
 
-    // println!("{:#?}", ffft);
+    competitions.retain(|c| !c.is_subcomp.get());
+
+    // write output files, grouped by root competitions
+    for (index, comp) in competitions.iter().enumerate() {
+        let mut sex = comp.source.sex.clone();
+        if !sex.is_empty() {
+            sex = format!(" ({})", sex);
+        }
+
+        let comp_name = format!(
+            "{} - {} {}{}",
+            index + 1,
+            comp.source.competitionType,
+            comp.source.name,
+            sex
+        );
+        let comp_name = comp_name.trim().to_string();
+
+        let _ = fs::create_dir(&comp_name);
+
+        write_competition(&format!("{}/qualifications.txt", comp_name), comp);
+        for (id, sub) in comp.subcomps().iter().enumerate() {
+            write_competition(
+                &format!("{}/{} {}.txt", comp_name, id + 1, sub.source.name),
+                sub,
+            );
+        }
+    }
 
     return ExitCode::SUCCESS;
 }
