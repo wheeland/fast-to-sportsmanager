@@ -3,8 +3,11 @@ use std::{collections::HashMap, fs};
 use scraper::{ElementRef, Html, Selector};
 use serde_derive::{Deserialize, Serialize};
 
+use crate::fast;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ItsfPlayer {
+    pub id: u64,
     pub first_name: String,
     pub last_name: String,
 }
@@ -36,7 +39,7 @@ fn to_normalcase(word: &str) -> String {
     result
 }
 
-fn parse_player_info_from(html: &Html) -> Result<ItsfPlayer, String> {
+fn parse_player_info_from(id: u64, html: &Html) -> Result<ItsfPlayer, String> {
     let nomdujoueur = get_div_with_class(html, "nomdujoueur");
     let nomdujoueur = nomdujoueur.first().ok_or("can't find div nomdujoueur")?;
     let name = nomdujoueur
@@ -58,19 +61,20 @@ fn parse_player_info_from(html: &Html) -> Result<ItsfPlayer, String> {
         .join(" ");
 
     Ok(ItsfPlayer {
+        id,
         first_name,
         last_name,
     })
 }
 
-fn download_player_info_from(url: &str) -> Result<ItsfPlayer, String> {
+fn download_player_info_from(id: u64, url: &str) -> Result<ItsfPlayer, String> {
     let body = reqwest::blocking::get(url)
         .map_err(|e| e.to_string())?
         .text()
         .map_err(|e| e.to_string())?;
 
     let itsf = Html::parse_document(&body);
-    parse_player_info_from(&itsf)
+    parse_player_info_from(id, &itsf)
 }
 
 pub fn download_player_info(itsf_id: u64) -> Result<ItsfPlayer, String> {
@@ -78,7 +82,7 @@ pub fn download_player_info(itsf_id: u64) -> Result<ItsfPlayer, String> {
         "https://www.tablesoccer.org/page/player&numlic={:08}",
         itsf_id
     );
-    download_player_info_from(&url)
+    download_player_info_from(itsf_id, &url)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -106,24 +110,29 @@ impl ItsfPlayerDb {
         }
     }
 
-    pub fn register(&mut self, id: u64, lic: u64) -> bool {
-        if self.players.contains_key(&id) || id == 0 {
-            return false;
-        }
+    pub fn register(&mut self, player_infos: &fast::PlayerInfos) {
+        let id = player_infos.id();
+        assert!(id > 0);
 
-        if let Some(player) = download_player_info(lic).ok() {
-            if !player.first_name.is_empty() && !player.last_name.is_empty() {
-                println!(
-                    "Player ID {} registered with ITSF lic {}: {} {}",
-                    id, lic, player.first_name, player.last_name
-                );
-                self.players.insert(id, player);
-                true
-            } else {
-                false
-            }
-        } else {
-            false
+        if !self.players.contains_key(&id) {
+            let player = match &player_infos.player {
+                Some(player) => ItsfPlayer {
+                    id,
+                    first_name: player.person.firstName.clone(),
+                    last_name: player.person.lastName.clone(),
+                },
+                None => {
+                    assert!(player_infos.noLicense > 0);
+                    let player = download_player_info(player_infos.noLicense)
+                        .expect("Failed to get ITSF player");
+                    println!(
+                        "Downloaded player data for {}: {} {}",
+                        player_infos.noLicense, player.first_name, player.last_name
+                    );
+                    player
+                }
+            };
+            self.players.insert(id, player);
         }
     }
 

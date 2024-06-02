@@ -81,7 +81,7 @@ fn main() -> ExitCode {
     // download player info
     let mut players = ItsfPlayerDb::try_load_cache(CACHE);
     for player in &ffft.registeredPlayers.players {
-        players.register(player.playerId, player.noLicense);
+        players.register(player);
         players.save_cache(CACHE);
     }
 

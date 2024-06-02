@@ -3,11 +3,30 @@
 use serde_derive::Deserialize;
 
 #[derive(Deserialize, Debug)]
+pub struct Person {
+    pub firstName: String,
+    pub lastName: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Player {
+    pub id: u64,
+    pub person: Person,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct PlayerInfos {
     #[serde(default)]
     pub noLicense: u64,
     #[serde(default)]
     pub playerId: u64,
+    pub player: Option<Player>,
+}
+
+impl PlayerInfos {
+    pub fn id(&self) -> u64 {
+        self.player.as_ref().map(|p| p.id).unwrap_or(self.playerId)
+    }
 }
 
 #[derive(Deserialize, Debug)]
