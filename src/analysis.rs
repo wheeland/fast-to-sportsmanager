@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, rc::Rc};
+use std::{cell::Cell, collections::HashMap, fmt::Debug, rc::Rc};
 
 use crate::{
     fast,
@@ -70,19 +70,23 @@ impl Debug for Match {
     }
 }
 
-pub struct Phase {
+pub struct Phase<'a> {
+    pub source: &'a fast::Phase,
     pub phase_type: String,
     pub ranking: Vec<(TeamRc, u64)>,
     pub matches: Vec<Match>,
 }
 
-pub struct Competition {
+pub struct Competition<'a> {
+    pub source: &'a fast::Competition,
     pub teams: HashMap<u64, Rc<Team>>,
-    pub phases: Vec<Phase>,
+    pub phases: Vec<Phase<'a>>,
+    pub subcomps: Cell<Vec<Rc<Self>>>,
+    pub is_subcomp: Cell<bool>,
 }
 
-impl Competition {
-    pub fn new(competition: &fast::Competition, players: &ItsfPlayerDb) -> Self {
+impl<'a> Competition<'a> {
+    pub fn new(competition: &'a fast::Competition, players: &ItsfPlayerDb) -> Rc<Self> {
         let mut teams = HashMap::new();
         let mut phases = Vec::new();
 
@@ -117,12 +121,49 @@ impl Competition {
             }
 
             phases.push(Phase {
+                source: phase,
                 phase_type,
                 ranking,
                 matches,
             });
         }
 
-        Self { teams, phases }
+        Rc::new(Self {
+            source: competition,
+            teams,
+            phases,
+            subcomps: Cell::new(Vec::new()),
+            is_subcomp: Cell::new(false),
+        })
+    }
+
+    fn is_qualification_for(&self, other: &Competition) -> bool {
+        other
+            .teams
+            .iter()
+            .all(|(_, other_team)| self.teams.iter().any(|(_, team)| team.is_same(other_team)))
+    }
+
+    pub fn maybe_add_subcompetition(&self, other: &Rc<Competition<'a>>) -> bool {
+        let self_ptr = self as *const _;
+        let other_ptr = &**other as *const _;
+        if self_ptr != other_ptr && self.is_qualification_for(other) {
+            let mut subcomps = self.subcomps.take();
+            subcomps.push(other.clone());
+            self.subcomps.set(subcomps);
+
+            other.is_subcomp.set(true);
+
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn subcomps(&self) -> Vec<Rc<Self>> {
+        let subcomps = self.subcomps.take();
+        let ret = subcomps.clone();
+        self.subcomps.set(subcomps);
+        ret
     }
 }
