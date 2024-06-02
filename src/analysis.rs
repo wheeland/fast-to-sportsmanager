@@ -49,9 +49,9 @@ impl Debug for Team {
 pub type TeamRc = Rc<Team>;
 
 pub struct Match {
-    result: fast::TeamMatchResult,
-    team1: TeamRc,
-    team2: TeamRc,
+    pub result: fast::TeamMatchResult,
+    pub team1: TeamRc,
+    pub team2: TeamRc,
 }
 
 impl Debug for Match {
