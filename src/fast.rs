@@ -49,6 +49,8 @@ pub struct TeamMatch {
     pub team2Id: u64,
     #[serde(default)]
     pub matchNumber: u64,
+    #[serde(default)]
+    pub matchDepth: u64,
     pub game: Vec<Game>,
 }
 

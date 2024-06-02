@@ -25,7 +25,10 @@ fn write_competition(outfile: &str, comp: &analysis::Competition, ty: Competitio
 
     let mut disziplin = sportsmanager::Disziplin {
         name: comp.source.name.clone(),
-        system: sportsmanager::Disziplin::KO.to_string(),
+        system: match ty {
+            CompetitionType::Swiss => sportsmanager::Disziplin::SWISS.to_string(),
+            CompetitionType::KO => sportsmanager::Disziplin::KO.to_string(),
+        },
         meldung: Vec::new(),
         runde: Vec::new(),
     };
@@ -36,50 +39,27 @@ fn write_competition(outfile: &str, comp: &analysis::Competition, ty: Competitio
             .push(sportsmanager::Meldung::from(*rank, team));
     }
 
-    let matches: Vec<sportsmanager::Spiel> = phase
-        .matches
-        .iter()
-        .enumerate()
-        .map(|(id, m)| sportsmanager::Spiel::from(id as u64, m))
-        .collect();
+    let mut runden = HashMap::new();
 
-    match ty {
-        CompetitionType::Swiss => {
-            let mut matches_per_team = HashMap::new();
-            for (team, rank) in &phase.ranking {
-                let team_name = sportsmanager::Meldung::from(*rank, team).name;
-                matches_per_team.insert(team_name, 0);
-            }
+    for (id, m) in phase.matches.iter().enumerate() {
+        let spiel = sportsmanager::Spiel::from(id as u64, m);
+        let no = match ty {
+            CompetitionType::Swiss => m.source.matchDepth,
+            CompetitionType::KO => 19999 - m.source.matchDepth,
+        };
 
-            let mut runde = sportsmanager::Runde {
-                no: 1,
-                spiel: Vec::new(),
-            };
+        let runde = runden.entry(no).or_insert(sportsmanager::Runde {
+            no,
+            spiel: Vec::new(),
+        });
 
-            for m in matches {
-                let mut next_round = false;
-                next_round |= *matches_per_team.get(&m.heim).unwrap_or(&0) >= runde.no;
-                next_round |= *matches_per_team.get(&m.gast).unwrap_or(&0) >= runde.no;
-                if next_round {
-                    let no = runde.no + 1;
-                    disziplin.runde.push(runde);
-                    runde = sportsmanager::Runde {
-                        no,
-                        spiel: Vec::new(),
-                    };
-                }
+        runde.spiel.push(spiel);
+    }
 
-                *matches_per_team.get_mut(&m.heim).unwrap() += 1;
-                *matches_per_team.get_mut(&m.gast).unwrap() += 1;
-
-                runde.spiel.push(m);
-            }
-
-            if !runde.spiel.is_empty() {
-                disziplin.runde.push(runde);
-            }
-        }
-        CompetitionType::KO => {}
+    let mut runden: Vec<sportsmanager::Runde> = runden.into_values().collect();
+    runden.sort_by_key(|runde| runde.no);
+    for runde in runden {
+        disziplin.runde.push(runde);
     }
 
     let sport = sportsmanager::Sport { disziplin };
