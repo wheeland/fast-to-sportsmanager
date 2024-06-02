@@ -22,6 +22,10 @@ impl Team {
             player2: player2.cloned(),
         })
     }
+
+    pub fn is_same(&self, other: &Team) -> bool {
+        self.player1 == other.player1 && self.player2 == other.player2
+    }
 }
 
 impl Debug for Team {
