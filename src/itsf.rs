@@ -5,6 +5,18 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::fast;
 
+fn fix_name_case(name: &str) -> String {
+    let mut name = String::from(name);
+    for i in 1..name.len() {
+        let last = name.chars().nth(i - 1).unwrap();
+        let curr = name.chars().nth(i).unwrap();
+        if last.is_alphabetic() && curr.is_uppercase() {
+            name.replace_range(i..(i+1), &curr.to_lowercase().to_string());
+        }
+    }
+    name
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ItsfPlayer {
     pub id: u64,
@@ -118,8 +130,8 @@ impl ItsfPlayerDb {
             let player = match &player_infos.player {
                 Some(player) => ItsfPlayer {
                     id,
-                    first_name: player.person.firstName.clone(),
-                    last_name: player.person.lastName.clone(),
+                    first_name: fix_name_case(&player.person.firstName),
+                    last_name: fix_name_case(&player.person.lastName),
                 },
                 None => {
                     assert!(player_infos.noLicense > 0);
