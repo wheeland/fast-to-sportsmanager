@@ -16,6 +16,7 @@ impl Team {
         let id = competition_team.id;
         let player1 = players.get(competition_team.team.player1Id);
         let player2 = players.get(competition_team.team.player2Id);
+
         player1.map(|player1| Self {
             id,
             player1: player1.clone(),

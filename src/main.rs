@@ -2,9 +2,9 @@ use std::{collections::HashMap, env, fs, process::ExitCode};
 
 use itsf::ItsfPlayerDb;
 
-mod analysis;
 mod fast;
 mod itsf;
+mod model;
 mod sportsmanager;
 
 const CACHE: &'static str = "player_cache.json";
@@ -14,7 +14,7 @@ enum CompetitionType {
     KO,
 }
 
-fn write_competition(outfile: &str, comp: &analysis::Competition, ty: CompetitionType) {
+fn write_competition(outfile: &str, comp: &model::Competition, ty: CompetitionType) {
     assert!(comp.phases.len() > 0, "Competition has no phases");
     let match_phase = comp
         .phases
@@ -89,7 +89,7 @@ fn main() -> ExitCode {
     let mut competitions = Vec::new();
     for tournament in &ffft.tournaments.tournaments {
         for competition in &tournament.competition {
-            let comp = analysis::Competition::new(competition, &players);
+            let comp = model::Competition::new(competition, &players);
 
             for other_comp in &competitions {
                 comp.maybe_add_subcompetition(other_comp);

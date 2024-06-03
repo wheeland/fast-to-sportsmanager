@@ -1,9 +1,9 @@
 use serde_derive::Serialize;
 
 use crate::{
-    analysis::{self, Team},
     fast::TeamMatchResult,
     itsf::ItsfPlayer,
+    model::{self, Team},
 };
 
 #[derive(Serialize, Debug)]
@@ -74,7 +74,7 @@ pub struct Spiel {
 }
 
 impl Spiel {
-    pub fn from(no: u64, m: &analysis::Match) -> Self {
+    pub fn from(no: u64, m: &model::Match) -> Self {
         let heim = Meldung::from(0, &m.team1).name;
         let gast = Meldung::from(0, &m.team2).name;
         let (s1, s2) = match m.result {
