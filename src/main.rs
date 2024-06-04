@@ -45,7 +45,11 @@ fn write_competition(outfile: &str, comp: &model::Competition, ty: CompetitionTy
         let spiel = sportsmanager::Spiel::from(id as u64, m);
         let no = match ty {
             CompetitionType::Swiss => m.source.matchDepth,
-            CompetitionType::KO => 19999 - m.source.matchDepth,
+            CompetitionType::KO => match m.source.matchDepth {
+                0 => 19998, // 3rd place match
+                1 => 19999, // finals
+                _ => 19999 - m.source.matchDepth,
+            },
         };
 
         let runde = runden.entry(no).or_insert(sportsmanager::Runde {
