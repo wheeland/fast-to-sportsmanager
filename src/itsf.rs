@@ -11,13 +11,13 @@ fn fix_name_case(name: &str) -> String {
         let last = name.chars().nth(i - 1).unwrap();
         let curr = name.chars().nth(i).unwrap();
         if last.is_alphabetic() && curr.is_uppercase() {
-            name.replace_range(i..(i+1), &curr.to_lowercase().to_string());
+            name.replace_range(i..(i + 1), &curr.to_lowercase().to_string());
         }
     }
     name
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct ItsfPlayer {
     pub id: u64,
     pub first_name: String,

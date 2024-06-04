@@ -1,15 +1,37 @@
-use std::{cell::Cell, collections::HashMap, fmt::Debug, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fmt::Debug,
+    hash::Hash,
+    rc::Rc,
+};
 
 use crate::{
     fast,
     itsf::{ItsfPlayer, ItsfPlayerDb},
 };
 
+#[derive(Clone)]
 pub struct Team {
     pub id: u64,
     pub player1: ItsfPlayer,
     pub player2: Option<ItsfPlayer>,
 }
+
+impl Hash for Team {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.player1.hash(state);
+        self.player2.hash(state);
+    }
+}
+
+impl PartialEq for Team {
+    fn eq(&self, other: &Self) -> bool {
+        self.player1 == other.player1 && self.player2 == other.player2
+    }
+}
+
+impl Eq for Team {}
 
 impl Team {
     pub fn new(competition_team: &fast::CompetitionTeam, players: &ItsfPlayerDb) -> Option<Self> {
@@ -83,12 +105,12 @@ pub struct Competition<'a> {
     pub source: &'a fast::Competition,
     pub teams: HashMap<u64, Rc<Team>>,
     pub phases: Vec<Phase<'a>>,
-    pub subcomps: Cell<Vec<Rc<Self>>>,
-    pub is_subcomp: Cell<bool>,
+    pub subcomps: Vec<Rc<RefCell<Self>>>,
+    pub is_subcomp: bool,
 }
 
 impl<'a> Competition<'a> {
-    pub fn new(competition: &'a fast::Competition, players: &ItsfPlayerDb) -> Rc<Self> {
+    pub fn new(competition: &'a fast::Competition, players: &ItsfPlayerDb) -> Rc<RefCell<Self>> {
         let mut teams = HashMap::new();
         let mut phases = Vec::new();
 
@@ -131,13 +153,13 @@ impl<'a> Competition<'a> {
             });
         }
 
-        Rc::new(Self {
+        Rc::new(RefCell::new(Self {
             source: competition,
             teams,
             phases,
-            subcomps: Cell::new(Vec::new()),
-            is_subcomp: Cell::new(false),
-        })
+            subcomps: Vec::new(),
+            is_subcomp: false,
+        }))
     }
 
     fn is_qualification_for(&self, other: &Competition) -> bool {
@@ -147,15 +169,16 @@ impl<'a> Competition<'a> {
             .all(|(_, other_team)| self.teams.iter().any(|(_, team)| team.is_same(other_team)))
     }
 
-    pub fn maybe_add_subcompetition(&self, other: &Rc<Competition<'a>>) -> bool {
-        let self_ptr = self as *const _;
-        let other_ptr = &**other as *const _;
-        if self_ptr != other_ptr && self.is_qualification_for(other) {
-            let mut subcomps = self.subcomps.take();
-            subcomps.push(other.clone());
-            self.subcomps.set(subcomps);
+    pub fn maybe_add_subcompetition(&mut self, other: &Rc<RefCell<Competition<'a>>>) -> bool {
+        let mut other_mut = other.borrow_mut();
 
-            other.is_subcomp.set(true);
+        let self_ptr = self.source as *const _;
+        let other_ptr = other_mut.source as *const _;
+
+        if self_ptr != other_ptr && self.is_qualification_for(&other_mut) {
+            assert!(!self.is_subcomp);
+            self.subcomps.push(other.clone());
+            other_mut.is_subcomp = true;
 
             true
         } else {
@@ -163,10 +186,38 @@ impl<'a> Competition<'a> {
         }
     }
 
-    pub fn subcomps(&self) -> Vec<Rc<Self>> {
-        let subcomps = self.subcomps.take();
-        let ret = subcomps.clone();
-        self.subcomps.set(subcomps);
-        ret
+    pub fn rankings(&self) -> HashMap<Team, u64> {
+        let ranking_phase = self
+            .phases
+            .iter()
+            .filter(|phase| !phase.matches.is_empty())
+            .next();
+        let ranking_phase = ranking_phase.unwrap();
+
+        ranking_phase
+            .ranking
+            .iter()
+            .map(|(team, rank)| ((**team).clone(), *rank))
+            .collect()
+    }
+
+    pub fn adjust_final_rankings(&mut self, qualification_rankings: &HashMap<Team, u64>) {
+        for phase in &mut self.phases {
+            let mut first_rank = 4;
+
+            while first_rank < phase.ranking.len() {
+                let last_rank = (first_rank * 2).min(phase.ranking.len());
+                phase.ranking[first_rank..last_rank].sort_by(|a, b| {
+                    let a = *qualification_rankings.get(&*a.0).unwrap();
+                    let b = *qualification_rankings.get(&*b.0).unwrap();
+                    a.cmp(&b)
+                });
+                first_rank *= 2;
+            }
+
+            for (new_rank, (_, rank)) in &mut phase.ranking.iter_mut().enumerate() {
+                *rank = (new_rank + 1) as u64;
+            }
+        }
     }
 }

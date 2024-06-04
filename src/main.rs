@@ -96,18 +96,27 @@ fn main() -> ExitCode {
             let comp = model::Competition::new(competition, &players);
 
             for other_comp in &competitions {
-                comp.maybe_add_subcompetition(other_comp);
-                other_comp.maybe_add_subcompetition(&comp);
+                comp.borrow_mut().maybe_add_subcompetition(other_comp);
+                other_comp.borrow_mut().maybe_add_subcompetition(&comp);
             }
 
             competitions.push(comp);
         }
     }
 
-    competitions.retain(|c| !c.is_subcomp.get());
+    competitions.retain(|c| !c.borrow().is_subcomp);
+
+    for comp in &competitions {
+        let rankings = comp.borrow().rankings();
+        for sub in &comp.borrow().subcomps {
+            sub.borrow_mut().adjust_final_rankings(&rankings);
+        }
+    }
 
     // write output files, grouped by root competitions
     for (index, comp) in competitions.iter().enumerate() {
+        let comp = comp.borrow();
+
         let mut sex = comp.source.sex.clone();
         if !sex.is_empty() {
             sex = format!(" ({})", sex);
@@ -126,14 +135,16 @@ fn main() -> ExitCode {
 
         write_competition(
             &format!("{}/qualifications.xml", comp_name),
-            comp,
+            &comp,
             CompetitionType::Swiss,
         );
 
-        for (id, sub) in comp.subcomps().iter().enumerate() {
+        for (id, sub) in comp.subcomps.iter().enumerate() {
+            let sub = sub.borrow();
+
             write_competition(
                 &format!("{}/{} {}.xml", comp_name, id + 1, sub.source.name),
-                sub,
+                &sub,
                 CompetitionType::KO,
             );
         }
