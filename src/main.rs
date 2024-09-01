@@ -32,7 +32,7 @@ fn write_competition(outfile: &str, comp: &model::Competition, ty: CompetitionTy
     for (team, rank) in &phase.ranking {
         disziplin
             .meldung
-            .push(sportsmanager::Meldung::from(*rank, team));
+            .push(sportsmanager::Meldung::from_team(*rank, team));
     }
 
     let mut runden = HashMap::new();

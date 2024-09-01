@@ -36,7 +36,7 @@ pub struct Meldung {
 }
 
 impl Meldung {
-    pub fn from(rank: u64, team: &Team) -> Self {
+    pub fn from_team(rank: u64, team: &Team) -> Self {
         let spieler1 = Spieler::from_itsf(&team.player1);
         let spieler2 = team.player2.as_ref().map(Spieler::from_itsf);
         let mut name = spieler1.name.clone();
@@ -75,8 +75,8 @@ pub struct Spiel {
 
 impl Spiel {
     pub fn from(no: u64, m: &model::Match) -> Self {
-        let heim = Meldung::from(0, &m.team1).name;
-        let gast = Meldung::from(0, &m.team2).name;
+        let heim = Meldung::from_team(0, &m.team1).name;
+        let gast = Meldung::from_team(0, &m.team2).name;
         let (s1, s2) = match m.result {
             TeamMatchResult::Draw => (1, 1),
             TeamMatchResult::Win1 => (1, 0),
