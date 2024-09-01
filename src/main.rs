@@ -1,7 +1,6 @@
 use std::{collections::HashMap, fs};
 
 use clap::{Parser, Subcommand};
-use itsf::ItsfPlayerDb;
 
 mod fast;
 mod itsf;
@@ -101,7 +100,7 @@ fn main() {
             let ffft: fast::Ffft = serde_xml_rs::from_str(&xml).expect("Failed to parse XML");
         
             // download player info
-            let mut players = ItsfPlayerDb::try_load_cache(CACHE);
+            let mut players = itsf::ItsfPlayerDb::try_load_cache(CACHE);
             for player in &ffft.registeredPlayers.players {
                 players.register(player);
                 players.save_cache(CACHE);
