@@ -37,7 +37,7 @@ fn write_competition(outfile: &str, comp: &model::Competition, ty: CompetitionTy
     let mut runden = HashMap::new();
 
     for (id, m) in phase.matches.iter().enumerate() {
-        let spiel = sportsmanager::Spiel::from(id as u64, m);
+        let spiel = sportsmanager::Spiel::from_match(id as u64, m);
         let no = match ty {
             CompetitionType::Swiss => m.source.matchDepth,
             CompetitionType::KO => match m.source.matchDepth {

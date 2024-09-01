@@ -74,21 +74,26 @@ pub struct Spiel {
 }
 
 impl Spiel {
-    pub fn from(no: u64, m: &model::Match) -> Self {
-        let heim = Meldung::from_team(0, &m.team1).name;
-        let gast = Meldung::from_team(0, &m.team2).name;
-        let (s1, s2) = match m.result {
-            TeamMatchResult::Draw => (1, 1),
-            TeamMatchResult::Win1 => (1, 0),
-            TeamMatchResult::Win2 => (0, 1),
-        };
-        let satz = vec![Satz { heim: s1, gast: s2 }];
+    pub fn from(no: u64, heim: &str, gast: &str, score: (u64, u64)) -> Self {
         Self {
-            heim,
-            gast,
-            satz,
+            heim: heim.to_string(),
+            gast: gast.to_string(),
+            satz: vec![Satz { heim: score.0, gast: score.1 }],
             no,
         }
+    }
+
+    pub fn from_match(no: u64, m: &model::Match) -> Self {
+        Self::from(
+            no,
+            &Meldung::from_team(0, &m.team1).name,
+            &Meldung::from_team(0, &m.team2).name,
+            match m.result {
+                TeamMatchResult::Draw => (1, 1),
+                TeamMatchResult::Win1 => (1, 0),
+                TeamMatchResult::Win2 => (0, 1),
+            }
+        )
     }
 }
 
