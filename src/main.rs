@@ -24,14 +24,9 @@ fn write_competition(outfile: &str, comp: &model::Competition, ty: CompetitionTy
         .next();
     let phase = match_phase.unwrap_or(comp.phases.first().unwrap());
 
-    let mut disziplin = sportsmanager::Disziplin {
-        name: comp.source.name.clone(),
-        system: match ty {
-            CompetitionType::Swiss => sportsmanager::Disziplin::SWISS.to_string(),
-            CompetitionType::KO => sportsmanager::Disziplin::KO.to_string(),
-        },
-        meldung: Vec::new(),
-        runde: Vec::new(),
+    let mut disziplin = match ty {
+        CompetitionType::Swiss => sportsmanager::Disziplin::swiss(&comp.source.name),
+        CompetitionType::KO => sportsmanager::Disziplin::ko(&comp.source.name),
     };
 
     for (team, rank) in &phase.ranking {

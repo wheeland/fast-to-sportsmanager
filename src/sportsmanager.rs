@@ -110,8 +110,23 @@ pub struct Disziplin {
 }
 
 impl Disziplin {
-    pub const SWISS: &'static str = "Schweizer System";
-    pub const KO: &'static str = "KO-System";
+    pub fn swiss(name: &str) -> Self {
+        Self {
+            name: String::from(name),
+            system: String::from("Schweizer System"),
+            meldung: Vec::new(),
+            runde: Vec::new(),
+        }
+    }
+
+    pub fn ko(name: &str) -> Self {
+        Self {
+            name: String::from(name),
+            system: String::from("KO-System"),
+            meldung: Vec::new(),
+            runde: Vec::new(),
+        }
+    }
 }
 
 #[derive(Serialize, Debug)]
