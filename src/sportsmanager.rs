@@ -104,6 +104,15 @@ pub struct Runde {
     pub spiel: Vec<Spiel>,
 }
 
+impl Runde {
+    pub fn new(no: u64) -> Self {
+        Self {
+            no,
+            spiel: Vec::new(),    
+        }
+    }
+}
+
 #[derive(Serialize, Debug)]
 pub struct Disziplin {
     #[serde(rename = "@name")]

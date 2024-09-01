@@ -47,11 +47,7 @@ fn write_competition(outfile: &str, comp: &model::Competition, ty: CompetitionTy
             },
         };
 
-        let runde = runden.entry(no).or_insert(sportsmanager::Runde {
-            no,
-            spiel: Vec::new(),
-        });
-
+        let runde = runden.entry(no).or_insert(sportsmanager::Runde::new(no));
         runde.spiel.push(spiel);
     }
 
