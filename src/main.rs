@@ -1,5 +1,6 @@
-use std::{collections::HashMap, env, fs, process::ExitCode};
+use std::{collections::HashMap, fs};
 
+use clap::{Parser, Subcommand};
 use itsf::ItsfPlayerDb;
 
 mod fast;
@@ -71,84 +72,106 @@ fn write_competition(outfile: &str, comp: &model::Competition, ty: CompetitionTy
     fs::write(outfile, out).expect("Failed to write file");
 }
 
-fn main() -> ExitCode {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        println!("FAST .xml file name missing");
-        println!("Usage: {} file.xml", args[0]);
-        return ExitCode::from(1);
-    }
+/// Generates tournament XML files that can be imported into sportsmanager
+#[derive(Debug, Parser)]
+#[command(version, about, long_about = None)]
+struct CLI {
+    #[command(subcommand)]
+    command: Command,
+}
 
-    let xml = fs::read_to_string(&args[1]).expect("Unable to read file");
-    let ffft: fast::Ffft = serde_xml_rs::from_str(&xml).expect("Failed to parse XML");
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Clears the ITSF player cache, meaning that all players will be parsed from the ITSF
+    /// website the next time a tournament is processed
+    ClearPlayerCache,
 
-    // download player info
-    let mut players = ItsfPlayerDb::try_load_cache(CACHE);
-    for player in &ffft.registeredPlayers.players {
-        players.register(player);
-        players.save_cache(CACHE);
-    }
+    /// Generates sportsmanager tournament XMLs from a FAST outfrom.xml
+    FAST {
+        input_xml: String,
+    },
+}
 
-    // analyze data
-    let mut competitions = Vec::new();
-    for tournament in &ffft.tournaments.tournaments {
-        for competition in &tournament.competition {
-            let comp = model::Competition::new(competition, &players);
+fn main() {
+    let args = CLI::parse();
 
-            for other_comp in &competitions {
-                comp.borrow_mut().maybe_add_subcompetition(other_comp);
-                other_comp.borrow_mut().maybe_add_subcompetition(&comp);
+    match args.command {
+        Command::ClearPlayerCache => {
+            if std::path::Path::new(CACHE).exists() {
+                std::fs::remove_file(CACHE).expect(&format!("Failed to remove {}", CACHE));
             }
-
-            competitions.push(comp);
+        }
+        Command::FAST { input_xml } => {
+            let xml = fs::read_to_string(&input_xml).expect("Unable to read file");
+            let ffft: fast::Ffft = serde_xml_rs::from_str(&xml).expect("Failed to parse XML");
+        
+            // download player info
+            let mut players = ItsfPlayerDb::try_load_cache(CACHE);
+            for player in &ffft.registeredPlayers.players {
+                players.register(player);
+                players.save_cache(CACHE);
+            }
+        
+            // analyze data
+            let mut competitions = Vec::new();
+            for tournament in &ffft.tournaments.tournaments {
+                for competition in &tournament.competition {
+                    let comp = model::Competition::new(competition, &players);
+        
+                    for other_comp in &competitions {
+                        comp.borrow_mut().maybe_add_subcompetition(other_comp);
+                        other_comp.borrow_mut().maybe_add_subcompetition(&comp);
+                    }
+        
+                    competitions.push(comp);
+                }
+            }
+        
+            competitions.retain(|c| !c.borrow().is_subcomp);
+        
+            for comp in &competitions {
+                let rankings = comp.borrow().rankings();
+                for sub in &comp.borrow().subcomps {
+                    sub.borrow_mut().adjust_final_rankings(&rankings);
+                }
+            }
+        
+            // write output files, grouped by root competitions
+            for (index, comp) in competitions.iter().enumerate() {
+                let comp = comp.borrow();
+        
+                let mut sex = comp.source.sex.clone();
+                if !sex.is_empty() {
+                    sex = format!(" ({})", sex);
+                }
+        
+                let comp_name = format!(
+                    "{} - {} {}{}",
+                    index + 1,
+                    comp.source.competitionType,
+                    comp.source.name,
+                    sex
+                );
+                let comp_name = comp_name.trim().to_string();
+        
+                let _ = fs::create_dir(&comp_name);
+        
+                write_competition(
+                    &format!("{}/qualifications.xml", comp_name),
+                    &comp,
+                    CompetitionType::Swiss,
+                );
+        
+                for (id, sub) in comp.subcomps.iter().enumerate() {
+                    let sub = sub.borrow();
+        
+                    write_competition(
+                        &format!("{}/{} {}.xml", comp_name, id + 1, sub.source.name),
+                        &sub,
+                        CompetitionType::KO,
+                    );
+                }
+            }
         }
     }
-
-    competitions.retain(|c| !c.borrow().is_subcomp);
-
-    for comp in &competitions {
-        let rankings = comp.borrow().rankings();
-        for sub in &comp.borrow().subcomps {
-            sub.borrow_mut().adjust_final_rankings(&rankings);
-        }
-    }
-
-    // write output files, grouped by root competitions
-    for (index, comp) in competitions.iter().enumerate() {
-        let comp = comp.borrow();
-
-        let mut sex = comp.source.sex.clone();
-        if !sex.is_empty() {
-            sex = format!(" ({})", sex);
-        }
-
-        let comp_name = format!(
-            "{} - {} {}{}",
-            index + 1,
-            comp.source.competitionType,
-            comp.source.name,
-            sex
-        );
-        let comp_name = comp_name.trim().to_string();
-
-        let _ = fs::create_dir(&comp_name);
-
-        write_competition(
-            &format!("{}/qualifications.xml", comp_name),
-            &comp,
-            CompetitionType::Swiss,
-        );
-
-        for (id, sub) in comp.subcomps.iter().enumerate() {
-            let sub = sub.borrow();
-
-            write_competition(
-                &format!("{}/{} {}.xml", comp_name, id + 1, sub.source.name),
-                &sub,
-                CompetitionType::KO,
-            );
-        }
-    }
-
-    return ExitCode::SUCCESS;
 }
