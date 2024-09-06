@@ -15,6 +15,12 @@ enum CompetitionType {
     KO,
 }
 
+fn write_disziplin(outfile: &str, disziplin: sportsmanager::Disziplin) {
+    let sport = sportsmanager::Sport { disziplin };
+    let out = quick_xml::se::to_string(&sport).expect("Failed to serialize sportsmanager xml");
+    fs::write(outfile, out).expect("Failed to write file");
+}
+
 fn write_competition(outfile: &str, comp: &model::Competition, ty: CompetitionType) {
     assert!(comp.phases.len() > 0, "Competition has no phases");
     let match_phase = comp
@@ -58,9 +64,7 @@ fn write_competition(outfile: &str, comp: &model::Competition, ty: CompetitionTy
         disziplin.runde.push(runde);
     }
 
-    let sport = sportsmanager::Sport { disziplin };
-    let out = quick_xml::se::to_string(&sport).expect("Failed to serialize sportsmanager xml");
-    fs::write(outfile, out).expect("Failed to write file");
+    write_disziplin(outfile, disziplin);
 }
 
 /// Generates tournament XML files that can be imported into sportsmanager
