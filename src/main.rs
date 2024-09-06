@@ -2,6 +2,7 @@ use std::{collections::HashMap, fs};
 
 use clap::{Parser, Subcommand};
 
+mod coral;
 mod fast;
 mod itsf;
 mod model;
