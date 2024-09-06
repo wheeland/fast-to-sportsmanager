@@ -124,9 +124,10 @@ impl ItsfPlayerDb {
 
     pub fn register_id(&mut self, id: u64) -> &ItsfPlayer {
         assert!(id > 0);
-        let _ = &self.players.entry(id).or_insert_with(|| {
-            download_player_info(id).expect("Failed to get ITSF player")
-        });
+        let _ = &self
+            .players
+            .entry(id)
+            .or_insert_with(|| download_player_info(id).expect("Failed to get ITSF player"));
         self.players.get(&id).unwrap()
     }
 

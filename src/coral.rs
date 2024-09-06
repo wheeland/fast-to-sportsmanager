@@ -9,7 +9,7 @@ pub struct Tournament {
 #[derive(Debug, Deserialize)]
 pub struct Standing {
     pub rank: i32,
-    pub players: Vec<String>
+    pub players: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -29,7 +29,6 @@ pub struct Phase {
     pub stage: i32,
     pub matches: Vec<Match>,
     pub standings: Vec<Standing>,
-
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,5 +55,4 @@ pub struct Coral {
     pub competitions: Vec<Competition>,
 }
 
-impl Coral {
-}
+impl Coral {}

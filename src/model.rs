@@ -1,10 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    fmt::Debug,
-    hash::Hash,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, hash::Hash, rc::Rc};
 
 use crate::{
     fast,
