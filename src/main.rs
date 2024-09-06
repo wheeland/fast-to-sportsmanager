@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs};
+use std::{collections::HashMap, fs, path::Path};
 
 use clap::{Parser, Subcommand};
 
@@ -9,6 +9,15 @@ mod model;
 mod sportsmanager;
 
 const CACHE: &'static str = "player_cache.json";
+
+fn create_dir(path: &str) {
+    let path = Path::new(path);
+    if !path.exists() {
+        fs::create_dir(path).expect("Failed to create output directory");
+    } else if !path.is_dir() {
+        panic!("Not a directory: {}", path.display());
+    }
+}
 
 enum CompetitionType {
     Swiss,
@@ -84,6 +93,13 @@ enum Command {
     /// Generates sportsmanager tournament XMLs from a FAST outfrom.xml
     FAST {
         input_xml: String,
+        directory: String,
+    },
+
+    /// Generates sportsmanager tournament XMLs from a Coral JSON export
+    Coral {
+        input_json: String,
+        directory: String,
     },
 }
 
@@ -96,7 +112,11 @@ fn main() {
                 std::fs::remove_file(CACHE).expect(&format!("Failed to remove {}", CACHE));
             }
         }
-        Command::FAST { input_xml } => {
+        Command::FAST {
+            input_xml,
+            directory,
+        } => {
+            create_dir(&directory);
             let xml = fs::read_to_string(&input_xml).expect("Unable to read file");
             let ffft: fast::Ffft = serde_xml_rs::from_str(&xml).expect("Failed to parse XML");
 
@@ -147,12 +167,12 @@ fn main() {
                     comp.source.name,
                     sex
                 );
-                let comp_name = comp_name.trim().to_string();
-        
-                let _ = fs::create_dir(&comp_name);
-        
+
+                let folder = directory.clone() + "/" + comp_name.trim();
+                create_dir(&folder);
+
                 write_competition(
-                    &format!("{}/qualifications.xml", comp_name),
+                    &format!("{}/qualifications.xml", folder),
                     &comp,
                     CompetitionType::Swiss,
                 );
@@ -161,10 +181,129 @@ fn main() {
                     let sub = sub.borrow();
 
                     write_competition(
-                        &format!("{}/{} {}.xml", comp_name, id + 1, sub.source.name),
+                        &format!("{}/{} {}.xml", folder, id + 1, sub.source.name),
                         &sub,
                         CompetitionType::KO,
                     );
+                }
+            }
+        }
+        Command::Coral {
+            input_json,
+            directory,
+        } => {
+            create_dir(&directory);
+            let json = fs::read_to_string(&input_json).expect("Unable to read file");
+            let coral: coral::Coral =
+                serde_json::from_str(&json).expect("Failed to parse input JSON file");
+
+            // download player info
+            let mut players = itsf::ItsfPlayerDb::try_load_cache(CACHE);
+
+            let player_ids: Vec<u64> = coral
+                .players
+                .iter()
+                .filter_map(|p| {
+                    match p
+                        .license
+                        .as_ref()
+                        .map(|l| l.parse().expect("player ITSF ID not a number"))
+                    {
+                        Some(id) => {
+                            if players.get(id).is_some() {
+                                None
+                            } else {
+                                Some(id)
+                            }
+                        }
+                        None => None,
+                    }
+                })
+                .collect();
+            let missing = player_ids
+                .iter()
+                .filter(|id| players.get(**id).is_none())
+                .count();
+            for (num, id) in player_ids.iter().enumerate() {
+                let player = players.register_id(*id);
+                println!(
+                    "Downloaded player data {}/{}: {} {} {}",
+                    num + 1,
+                    missing,
+                    id,
+                    player.first_name,
+                    player.last_name
+                );
+                players.save_cache(CACHE);
+            }
+
+            let get_meldung = |rank: u64, ids: &[String]| -> Option<sportsmanager::Meldung> {
+                let players: Vec<itsf::ItsfPlayer> = ids
+                    .iter()
+                    .filter_map(|id| {
+                        let id = id.parse().expect("player ID not a number");
+                        players.get(id).cloned()
+                    })
+                    .collect();
+
+                match players.len() {
+                    1 | 2 if players.len() == ids.len() => {
+                        Some(sportsmanager::Meldung::from_players(rank, &players))
+                    }
+                    _ => None,
+                }
+            };
+
+            for comp in coral.competitions {
+                let folder = directory.clone() + "/" + &comp.name.trim();
+                create_dir(&folder);
+
+                for phase in &comp.phases {
+                    let mut disziplin = match phase.system.as_str() {
+                        "swiss" | "round_robin" => sportsmanager::Disziplin::swiss(&phase.name),
+                        "sko" => sportsmanager::Disziplin::ko(&phase.name),
+                        _ => panic!("Invalid phase system: '{}'", phase.system),
+                    };
+
+                    println!("Processing '{}' / '{}'", comp.name, phase.name);
+
+                    for standing in &phase.standings {
+                        if let Some(meldung) = get_meldung(standing.rank as _, &standing.players) {
+                            disziplin.meldung.push(meldung);
+                        }
+                    }
+
+                    let mut runden = HashMap::new();
+                    for m in &phase.matches {
+                        if let Some((heim, gast)) =
+                            get_meldung(0, &m.home).zip(get_meldung(0, &m.away))
+                        {
+                            let score = match m.winner {
+                                Some(1) => (1, 0),
+                                Some(2) => (0, 1),
+                                _ => (0, 0),
+                            };
+                            let spiel = sportsmanager::Spiel::from(
+                                m.number as _,
+                                &heim.name,
+                                &gast.name,
+                                score,
+                            );
+
+                            let runde_no = m.round as _;
+                            let runde = runden.entry(runde_no).or_insert(sportsmanager::Runde {
+                                no: runde_no,
+                                spiel: Vec::new(),
+                            });
+
+                            runde.spiel.push(spiel);
+                        }
+                    }
+
+                    disziplin.runde = runden.into_values().collect();
+                    disziplin.runde.sort_by_key(|runde| runde.no);
+
+                    write_disziplin(&format!("{}/{}.xml", folder, phase.name), disziplin);
                 }
             }
         }

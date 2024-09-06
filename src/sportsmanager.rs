@@ -36,21 +36,35 @@ pub struct Meldung {
 }
 
 impl Meldung {
-    pub fn from_team(rank: u64, team: &Team) -> Self {
-        let spieler1 = Spieler::from_itsf(&team.player1);
-        let spieler2 = team.player2.as_ref().map(Spieler::from_itsf);
-        let mut name = spieler1.name.clone();
-        let mut spieler = vec![spieler1];
-        if let Some(spieler2) = spieler2 {
+    fn new(rank: u64, spieler: Vec<Spieler>) -> Self {
+        let mut name = spieler[0].name.clone();
+        if let Some(spieler2) = spieler.get(1) {
             name += &format!(" / {}", spieler2.name);
-            spieler.push(spieler2);
         }
-
         Self {
             name,
             platz: rank,
             spieler,
         }
+    }
+
+    pub fn from_players(rank: u64, players: &[ItsfPlayer]) -> Self {
+        assert!(players.len() == 1 || players.len() == 2);
+        let spieler1 = Spieler::from_itsf(&players[0]);
+        let spieler = match players.get(1) {
+            None => vec![spieler1],
+            Some(p) => vec![spieler1, Spieler::from_itsf(p)],
+        };
+        Self::new(rank, spieler)
+    }
+
+    pub fn from_team(rank: u64, team: &Team) -> Self {
+        let spieler1 = Spieler::from_itsf(&team.player1);
+        let spieler = match &team.player2 {
+            None => vec![spieler1],
+            Some(p) => vec![spieler1, Spieler::from_itsf(p)],
+        };
+        Self::new(rank, spieler)
     }
 }
 
@@ -78,7 +92,10 @@ impl Spiel {
         Self {
             heim: heim.to_string(),
             gast: gast.to_string(),
-            satz: vec![Satz { heim: score.0, gast: score.1 }],
+            satz: vec![Satz {
+                heim: score.0,
+                gast: score.1,
+            }],
             no,
         }
     }
@@ -92,7 +109,7 @@ impl Spiel {
                 TeamMatchResult::Draw => (1, 1),
                 TeamMatchResult::Win1 => (1, 0),
                 TeamMatchResult::Win2 => (0, 1),
-            }
+            },
         )
     }
 }
@@ -108,7 +125,7 @@ impl Runde {
     pub fn new(no: u64) -> Self {
         Self {
             no,
-            spiel: Vec::new(),    
+            spiel: Vec::new(),
         }
     }
 }
