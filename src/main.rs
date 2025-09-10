@@ -2,6 +2,8 @@ use std::{collections::HashMap, fs, path::Path};
 
 use clap::{Parser, Subcommand};
 
+use crate::{itsf::ItsfPlayer, sportsmanager::Spieler};
+
 mod coral;
 mod fast;
 mod itsf;
@@ -198,60 +200,42 @@ fn main() {
                 serde_json::from_str(&json).expect("Failed to parse input JSON file");
 
             // download player info
-            let mut players = itsf::ItsfPlayerDb::try_load_cache(CACHE);
+            let mut player_db = itsf::ItsfPlayerDb::try_load_cache(CACHE);
 
-            let player_ids: Vec<u64> = coral
+            enum Player {
+                Registered(ItsfPlayer),
+                Unknown(String),
+            }
+            let players: HashMap<String, Player> = coral
                 .players
                 .iter()
-                .filter_map(|p| {
-                    match p
-                        .license
-                        .as_ref()
-                        .map(|l| l.parse().expect("player ITSF ID not a number"))
-                    {
-                        Some(id) => {
-                            if players.get(id).is_some() {
-                                None
-                            } else {
-                                Some(id)
-                            }
-                        }
-                        None => None,
-                    }
+                .map(|coral_player| {
+                    let player = if let Some(itsf_player) =
+                        coral_player.license.as_ref().and_then(|id| {
+                            player_db.register_id(id.parse().expect("player ITSF ID not a number"))
+                        }) {
+                        Player::Registered(itsf_player.clone())
+                    } else {
+                        Player::Unknown(coral_player.name.clone())
+                    };
+                    (coral_player.code.clone(), player)
                 })
                 .collect();
-            let missing = player_ids
-                .iter()
-                .filter(|id| players.get(**id).is_none())
-                .count();
-            for (num, id) in player_ids.iter().enumerate() {
-                let player = players.register_id(*id);
-                println!(
-                    "Downloaded player data {}/{}: {} {} {}",
-                    num + 1,
-                    missing,
-                    id,
-                    player.first_name,
-                    player.last_name
-                );
-                players.save_cache(CACHE);
-            }
 
-            let get_meldung = |rank: u64, ids: &[String]| -> Option<sportsmanager::Meldung> {
-                let players: Vec<itsf::ItsfPlayer> = ids
+            player_db.save_cache(CACHE);
+
+            let get_meldung = |rank: u64, codes: &[String]| {
+                assert!(codes.len() == 1 || codes.len() == 2);
+
+                let spieler: Vec<Spieler> = codes
                     .iter()
-                    .filter_map(|id| {
-                        let id = id.parse().expect("player ID not a number");
-                        players.get(id).cloned()
+                    .map(|code| match players.get(code).unwrap() {
+                        Player::Registered(itsf) => Spieler::from_itsf(itsf),
+                        Player::Unknown(name) => Spieler::from_name(name),
                     })
                     .collect();
 
-                match players.len() {
-                    1 | 2 if players.len() == ids.len() => {
-                        Some(sportsmanager::Meldung::from_players(rank, &players))
-                    }
-                    _ => None,
-                }
+                sportsmanager::Meldung::new(rank, spieler)
             };
 
             for comp in coral.competitions {
@@ -268,36 +252,39 @@ fn main() {
                     println!("Processing '{}' / '{}'", comp.name, phase.name);
 
                     for standing in &phase.standings {
-                        if let Some(meldung) = get_meldung(standing.rank as _, &standing.players) {
-                            disziplin.meldung.push(meldung);
-                        }
+                        disziplin
+                            .meldung
+                            .push(get_meldung(standing.rank as _, &standing.players));
                     }
 
                     let mut runden = HashMap::new();
                     for m in &phase.matches {
-                        if let Some((heim, gast)) =
-                            get_meldung(0, &m.home).zip(get_meldung(0, &m.away))
-                        {
-                            let score = match m.winner {
-                                Some(1) => (1, 0),
-                                Some(2) => (0, 1),
-                                _ => (0, 0),
-                            };
-                            let spiel = sportsmanager::Spiel::from(
-                                m.number as _,
-                                &heim.name,
-                                &gast.name,
-                                score,
-                            );
-
-                            let runde_no = m.round as _;
-                            let runde = runden.entry(runde_no).or_insert(sportsmanager::Runde {
-                                no: runde_no,
-                                spiel: Vec::new(),
-                            });
-
-                            runde.spiel.push(spiel);
+                        if m.home.len() != m.away.len() {
+                            continue;
                         }
+
+                        let heim = get_meldung(0, &m.home);
+                        let gast = get_meldung(0, &m.away);
+
+                        let score = match m.winner {
+                            Some(1) => (1, 0),
+                            Some(2) => (0, 1),
+                            _ => (0, 0),
+                        };
+                        let spiel = sportsmanager::Spiel::from(
+                            m.number as _,
+                            &heim.name,
+                            &gast.name,
+                            score,
+                        );
+
+                        let runde_no = m.round as _;
+                        let runde = runden.entry(runde_no).or_insert(sportsmanager::Runde {
+                            no: runde_no,
+                            spiel: Vec::new(),
+                        });
+
+                        runde.spiel.push(spiel);
                     }
 
                     disziplin.runde = runden.into_values().collect();

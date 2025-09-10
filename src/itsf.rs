@@ -72,21 +72,34 @@ fn parse_player_info_from(id: u64, html: &Html) -> Result<ItsfPlayer, String> {
         .collect::<Vec<&str>>()
         .join(" ");
 
-    Ok(ItsfPlayer {
-        id,
-        first_name,
-        last_name,
-    })
+    (!first_name.is_empty() && !last_name.is_empty())
+        .then_some(Ok(ItsfPlayer {
+            id,
+            first_name,
+            last_name,
+        }))
+        .ok_or("Can't parse player name")?
 }
 
 fn download_player_info_from(id: u64, url: &str) -> Result<ItsfPlayer, String> {
+    print!("Downloaded player data for {} ...", id);
+
     let body = reqwest::blocking::get(url)
         .map_err(|e| e.to_string())?
         .text()
         .map_err(|e| e.to_string())?;
 
     let itsf = Html::parse_document(&body);
-    parse_player_info_from(id, &itsf)
+
+    let result = parse_player_info_from(id, &itsf);
+    println!(
+        "{}!",
+        match &result {
+            Ok(_) => "done",
+            Err(_) => "error",
+        }
+    );
+    result
 }
 
 pub fn download_player_info(itsf_id: u64) -> Result<ItsfPlayer, String> {
@@ -122,13 +135,14 @@ impl ItsfPlayerDb {
         }
     }
 
-    pub fn register_id(&mut self, id: u64) -> &ItsfPlayer {
+    pub fn register_id(&mut self, id: u64) -> Option<&ItsfPlayer> {
         assert!(id > 0);
-        let _ = &self
-            .players
-            .entry(id)
-            .or_insert_with(|| download_player_info(id).expect("Failed to get ITSF player"));
-        self.players.get(&id).unwrap()
+        if !self.players.contains_key(&id) {
+            if let Ok(player) = download_player_info(id) {
+                self.players.insert(id, player);
+            }
+        }
+        self.players.get(&id)
     }
 
     pub fn register(&mut self, player_infos: &fast::PlayerInfos) {
@@ -146,10 +160,6 @@ impl ItsfPlayerDb {
                     assert!(player_infos.noLicense > 0);
                     let player = download_player_info(player_infos.noLicense)
                         .expect("Failed to get ITSF player");
-                    println!(
-                        "Downloaded player data for {}: {} {}",
-                        player_infos.noLicense, player.first_name, player.last_name
-                    );
                     player
                 }
             };

@@ -24,6 +24,18 @@ impl Spieler {
             nachname: player.last_name.clone(),
         }
     }
+    pub fn from_name(name: &str) -> Self {
+        let vorname = name.split(" ").next().unwrap().to_string();
+        let nachname = name
+            .split(" ")
+            .skip(1)
+            .fold(String::new(), |acc, n| acc + " " + n);
+        Self {
+            name: name.to_string(),
+            vorname,
+            nachname,
+        }
+    }
 }
 
 #[derive(Serialize, Debug)]
@@ -36,7 +48,7 @@ pub struct Meldung {
 }
 
 impl Meldung {
-    fn new(rank: u64, spieler: Vec<Spieler>) -> Self {
+    pub fn new(rank: u64, spieler: Vec<Spieler>) -> Self {
         let mut name = spieler[0].name.clone();
         if let Some(spieler2) = spieler.get(1) {
             name += &format!(" / {}", spieler2.name);
