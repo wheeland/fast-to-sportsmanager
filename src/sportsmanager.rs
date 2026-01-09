@@ -13,10 +13,10 @@ pub struct Spieler {
 impl Spieler {
     pub fn from_name(name: &str) -> Self {
         let names: Vec<_> = name.split(" ").collect();
-        let vorname = names[1..].join(" ");
-        let nachname = names[0].to_string();
+        let vorname = names[names.len()-1].to_string();
+        let nachname = names[0..names.len()-1].join(" ");
         Self {
-            name: name.to_string(),
+            name: vorname.clone() + " " + &nachname,
             vorname,
             nachname,
         }
