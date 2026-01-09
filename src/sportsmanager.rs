@@ -1,11 +1,5 @@
 use serde_derive::Serialize;
 
-use crate::{
-    fast::TeamMatchResult,
-    itsf::ItsfPlayer,
-    model::{self, Team},
-};
-
 #[derive(Serialize, Debug)]
 pub struct Spieler {
     #[serde(rename = "@name")]
@@ -17,19 +11,10 @@ pub struct Spieler {
 }
 
 impl Spieler {
-    pub fn from_itsf(player: &ItsfPlayer) -> Self {
-        Self {
-            name: format!("{} {}", player.first_name, player.last_name),
-            vorname: player.first_name.clone(),
-            nachname: player.last_name.clone(),
-        }
-    }
     pub fn from_name(name: &str) -> Self {
-        let vorname = name.split(" ").next().unwrap().to_string();
-        let nachname = name
-            .split(" ")
-            .skip(1)
-            .fold(String::new(), |acc, n| acc + " " + n);
+        let names: Vec<_> = name.split(" ").collect();
+        let vorname = names[1..].join(" ");
+        let nachname = names[0].to_string();
         Self {
             name: name.to_string(),
             vorname,
@@ -58,25 +43,6 @@ impl Meldung {
             platz: rank,
             spieler,
         }
-    }
-
-    pub fn from_players(rank: u64, players: &[ItsfPlayer]) -> Self {
-        assert!(players.len() == 1 || players.len() == 2);
-        let spieler1 = Spieler::from_itsf(&players[0]);
-        let spieler = match players.get(1) {
-            None => vec![spieler1],
-            Some(p) => vec![spieler1, Spieler::from_itsf(p)],
-        };
-        Self::new(rank, spieler)
-    }
-
-    pub fn from_team(rank: u64, team: &Team) -> Self {
-        let spieler1 = Spieler::from_itsf(&team.player1);
-        let spieler = match &team.player2 {
-            None => vec![spieler1],
-            Some(p) => vec![spieler1, Spieler::from_itsf(p)],
-        };
-        Self::new(rank, spieler)
     }
 }
 
@@ -110,19 +76,6 @@ impl Spiel {
             }],
             no,
         }
-    }
-
-    pub fn from_match(no: u64, m: &model::Match) -> Self {
-        Self::from(
-            no,
-            &Meldung::from_team(0, &m.team1).name,
-            &Meldung::from_team(0, &m.team2).name,
-            match m.result {
-                TeamMatchResult::Draw => (1, 1),
-                TeamMatchResult::Win1 => (1, 0),
-                TeamMatchResult::Win2 => (0, 1),
-            },
-        )
     }
 }
 
